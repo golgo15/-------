@@ -1,1 +1,4 @@
 pyinstaller --onefile --icon=YahooTool.ico --version-file prop.txt -n ヤフオクストクリ重複出品チェックツール .\listing_good_name.py
+
+
+pyinstaller -F -w --icon=YahooTool.ico --version-file prop.txt -n ヤフオクストクリ重複出品チェックツール .\listing_good_name.py

@@ -1,18 +1,143 @@
 import requests
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
-# import tkinter as tk
-# from tkinter import messagebox
+import tkinter as tk
+from tkinter import ttk
+from tkinter import Tk, Listbox
+from tkinter import messagebox
 import random
 import time
-# import ctypes
+import ctypes
+import math
+import re
+from openpyxl.worksheet.hyperlink import Hyperlink
+import tkinter.font as fnt
+from openpyxl.styles import Font, PatternFill, Border, Side, Color
+import datetime
 
+import iconData
 
 #------------------------------------------------
 # 定数
 #------------------------------------------------
 DEBUG_ENABLE = 0    #0:無効、1:有効
-GLOBAL_KEYS = {"yahoo_id"}
+GLOBAL_KEYS = {"selected_store","yahoo_id"}
+SETTING_FILE_NAME = "setting.ini"
+PAGE_DATA_NUM = 100
+
+#------------------------------------------------
+# グローバル変数
+#------------------------------------------------
+g_setting_data = {key: None for key in GLOBAL_KEYS}
+g_start_page = 1
+
+# 店舗データ
+IDX_YAHOO_ID = 0
+IDX_STORE_NAME =1
+store_data = {
+	"西春店":["kaitori_okoku_ya","西春店"]
+,	"桑名店":["gzimo46886","桑名店"]
+,	"西岐阜店":["slsrh86592","西岐阜店"]
+,	"四條畷店":["hhsys91218","四條畷店"]
+,	"蟹江店":["aqfei81056","蟹江店"]
+,	"春日井19号店":["nkexp48743","春日井19号店"]
+,	"大樹寺店":["uqxht92551","大樹寺店"]
+,	"京都久世171号店":["cgzyj88481","京都久世171号店"]
+,	"津守店":["teaxk49149","津守店"]
+,	"堺浜寺２６号店":["jhyzy38060","堺浜寺２６号店"]
+,	"大垣２５８店":["qcnnd80919","大垣２５８店"]
+,	"鈴鹿白子23号店":["sngbe73253","鈴鹿白子23号店"]
+,	"豊川店":["eyemc48423","豊川店"]
+,	"多治見19号店":["lslaa56339","多治見19号店"]
+,	"八幡店":["muvll59592","八幡店"]
+,	"長久手店":["mjeia68505","長久手店"]
+,	"守山大森インター店":["ptqaa81694","守山大森インター店"]
+,	"東大阪308号店":["zgraj36631","東大阪308号店"]
+,	"天理店":["ymqmd24448","天理店"]
+,	"金沢鞍月店":["bovgt86014","金沢鞍月店"]
+,	"白山福留8号店":["oaana19094","白山福留8号店"]
+}
+
+
+#---------------------------------------------------------
+#   関数名:LabelPrintRed()
+#   概要:ラベルを表示する
+#   引数:[i]:表示オブジェクト
+#        [i]:表示する文字列
+#   戻り値:なし
+#---------------------------------------------------------
+def LabelPrintRed(pLabelObj, outStr):
+    pLabelObj.config(fg="red", text=outStr, font=("bold"))
+    pLabelObj.update()
+
+#---------------------------------------------------------
+#   関数名:LabelPrint()
+#   概要:ラベルを表示する
+#   引数:[i]:表示オブジェクト
+#        [i]:表示する文字列
+#   戻り値:なし
+#---------------------------------------------------------
+def LabelPrint(pLabelObj, outStr):
+    pLabelObj.config(fg="black", text=outStr, font=("normal"))
+    pLabelObj.update()
+
+#---------------------------------------------------------
+#   関数名:TxtBoxPrint()
+#   概要:テキストボックスを表示する
+#   引数:表示する文字列
+#   戻り値:なし
+#---------------------------------------------------------
+def TxtBoxPrint(outStr):
+    result_box.insert(tk.END, outStr+'\n')
+    result_box.see(tk.END)
+    result_box.update()
+
+#---------------------------------------------------------
+#   関数名:VisibleProgress()
+#   概要:プログレスバーを更新する
+#   引数:なし
+#   戻り値:なし
+#---------------------------------------------------------
+def update_progress(add_val):
+    progress.configure(value=add_val)
+    progress.update()
+
+#---------------------------------------------------------
+#   関数名:VisibleProgress()
+#   概要:プログレスバーを表示する
+#   引数:なし
+#   戻り値:なし
+#---------------------------------------------------------
+def VisibleProgress():
+    progress.grid()
+
+#---------------------------------------------------------
+#   関数名:HiddenProgress()
+#   概要:プログレスバーを隠す
+#   引数:なし
+#   戻り値:なし
+#---------------------------------------------------------
+def HiddenProgress():
+    progress.grid_remove()
+
+
+#---------------------------------------------------------
+#   関数名:get_yahoo_id()
+#   概要:辞書データからYahooIDを取得する
+#   引数:なし
+#   戻り値:[string]YahooID
+#---------------------------------------------------------
+def get_yahoo_id():
+    selected_store = store_combobox.get()  # プルダウンメニューで選択された店舗名を取得
+    if selected_store in store_data:
+        yahoo_id = store_data[selected_store][IDX_YAHOO_ID]
+        store_name = store_data[selected_store][IDX_STORE_NAME]
+        # result_label.config(text=f"{selected_store}のYahoo IDは {yahoo_id} です。")
+    else:
+        # result_label.config(text=f"{selected_store} に対応する Yahoo ID が見つかりませんでした。")
+        yahoo_id = ""
+        store_name=""
+    return yahoo_id,store_name
 
 #---------------------------------------------------------
 #   関数名:read_config()
@@ -22,16 +147,21 @@ GLOBAL_KEYS = {"yahoo_id"}
 #---------------------------------------------------------
 def read_config(filename):
     config = {}
-    with open(filename, 'r') as file:
-        for line in file:
-            line = line.strip()  # 改行を除去
-            if line.startswith('#') or '=' not in line:
-                continue  # コメント行またはイコールが含まれない行はスキップ
-            key, value = line.split('=', 1)  # イコールで行を分割
-            if key.strip() in GLOBAL_KEYS:
-                config[key.strip()] = value.strip()  # キーと値を格納
-            else:
-                print(f"Invalid key: {key.strip()}. Skipping.")
+    try:
+        with open(filename, 'r', encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()  # 改行を除去
+                if line.startswith('#') or '=' not in line:
+                    continue  # コメント行またはイコールが含まれない行はスキップ
+                key, value = line.split('=', 1)  # イコールで行を分割
+                if key.strip() in GLOBAL_KEYS:
+                    config[key.strip()] = value.strip()  # キーと値を格納
+                else:
+                    TxtBoxPrint(f"Invalid key: {key.strip()}. Skipping.")
+    except FileNotFoundError:
+        # 設定ファイル新規作成
+        write_config(SETTING_FILE_NAME)
+
     return config
 
 #---------------------------------------------------------
@@ -43,18 +173,21 @@ def read_config(filename):
 def update_config(filename, key, new_value):
     updated_lines = []
     found_key = False  # 新しいキーが見つかったかどうかを示すフラグ
-    with open(filename, 'r') as file:
-        for line in file:
-            if line.strip().startswith(key + "="):
-                line = f"{key}={new_value}\n"  # 新しい値で行を更新
-                found_key = True
-            updated_lines.append(line)
+    try:
+        with open(filename, 'r', encoding="utf-8") as file:
+            for line in file:
+                if line.strip().startswith(key + "="):
+                    line = f"{key}={new_value}\n"  # 新しい値で行を更新
+                    found_key = True
+                updated_lines.append(line)
+    except FileNotFoundError:
+        print("ファイル無し")
 
     # 新しいキーが見つからなかった場合、ファイルの末尾に追加
     if not found_key:
         updated_lines.append(f"{key}={new_value}\n")
 
-    with open(filename, 'w') as file:
+    with open(filename, 'w', encoding="utf-8") as file:
         file.writelines(updated_lines)
 
 #---------------------------------------------------------
@@ -65,11 +198,11 @@ def update_config(filename, key, new_value):
 #---------------------------------------------------------
 def write_config(filename):
     # globalsにあるキーを取得して設定ファイルを更新する
-    for key in setting_data:
-        value = setting_data[key]  # キーに対応する値を取得
+    for key in g_setting_data:
+        value = g_setting_data[key]  # キーに対応する値を取得
         update_config(filename, key, str(value))  # 設定ファイルを更新
 
-    print("設定ファイルが更新されました。")
+    # TxtBoxPrint("設定ファイルが更新されました。")
 
 #---------------------------------------------------------
 #   関数名:DBG_DupDataSet()
@@ -108,9 +241,27 @@ def GetRandomTime( startNo, EndNo ):
 #   戻り値:次ページの有無（0=次ページなし、1=次ページあり）
 #---------------------------------------------------------
 def AnalizeResponse(response, all_data):
+    root.update()
+
     if response.status_code == 200:
         html = response.text
         soup = BeautifulSoup(html, "html.parser")
+
+        # セレクターを使って要素を選択(出品数)
+        selected_elements = soup.select("#allContents > div.gv-l-wrapper.gv-l-wrapper--pc.gv-l-wrapper--liquid > main > div > div.gv-l-contentHeader > div.Tab > ul > li.Tab__item.Tab__item--current > span > span")
+        goodsNum = selected_elements[0].text
+        LabelPrint(totalNum_label, f"出品数:{goodsNum}")
+
+        # プログレスバーの初期化
+        progress["value"] = 0
+        str_total = goodsNum[:-1]
+        str_total = re.sub(r',', '', str_total)
+        int_total = int(str_total)
+        endPrgCount = math.floor(int_total / PAGE_DATA_NUM) + 1
+
+        # プログレスバーの更新を開始
+        # root.after(1000, update_progress, 100/endPrgCount)  # 最初の更新を1秒後に実行
+        update_progress(int((g_start_page+PAGE_DATA_NUM)/PAGE_DATA_NUM/endPrgCount*100))
 
         # data-auction-idとdata-auction-titleを持つ要素を取得
         items = soup.find_all(lambda tag: tag.has_attr('data-auction-id') and tag.has_attr('data-auction-title'))
@@ -127,13 +278,13 @@ def AnalizeResponse(response, all_data):
         # 指定されたセレクターにマッチする要素を取得し、Pager__link--disableが含まれているかチェック
         next_link = soup.select_one("#allContents > div.gv-l-wrapper.gv-l-wrapper--pc.gv-l-wrapper--liquid > main > div > div.gv-l-contentBody > div.gv-l-main > div.Pager > ul > li.Pager__list.Pager__list--next > span.Pager__link--disable")
         if next_link:
-            print("データ取得完了")
+            TxtBoxPrint("データ取得完了")
             return 0
 
         # 次のページへ
         return 1
     else:
-        print("Failed to retrieve data from Yahoo Auctions")
+        TxtBoxPrint("Failed to retrieve data from Yahoo Auctions")
         return 0
 
 #---------------------------------------------------------
@@ -144,17 +295,18 @@ def AnalizeResponse(response, all_data):
 #        [o]multiple_data   チェック済み（重複）データ
 #   戻り値:なし
 #---------------------------------------------------------
-def DuplicateCheck( all_data, unique_data, multiple_data):
-    # 重複を除去する
-    # seen = set()
+def DuplicateCheck(all_data, unique_data, multiple_data):
     seen_titles = set()
+    seen_ids = set()
     for auction_id, auction_title in all_data:
-        if auction_title not in seen_titles:    #重複無し
+        if auction_title not in seen_titles:  # 重複無し
             seen_titles.add(auction_title)
+            seen_ids.add(auction_id)
             unique_data.append((auction_id, auction_title))
-        else:   #重複あり
-            multiple_data.append((auction_id, auction_title))
-
+        else:  # 重複あり
+            if auction_title in [item[1] for item in unique_data]:  # 重複相手を探す
+                duplicate_partner_id = [item[0] for item in unique_data if item[1] == auction_title][0]
+                multiple_data.append((auction_id, auction_title, duplicate_partner_id))
 #---------------------------------------------------------
 #   関数名:ExportExcelSheet()
 #   概要:指定のエクセルシートに指定データを書き込む
@@ -175,24 +327,45 @@ def ExportExcelSheet( ws, unique_data ):
 #        [i]multiple_data   チェック済み（重複）データ
 #   戻り値:なし
 #---------------------------------------------------------
-def OutputResultDuplicate( all_data, unique_data, multiple_data):
+def OutputResultDuplicate( l_work_selStore, all_data, unique_data, multiple_data):
     wb = Workbook()
     ws = wb.active
     ws.title = "出品リスト（ストクリ）"
     ExportExcelSheet( ws, unique_data )
+    # 現在の年月日時分を取得
+    current_datetime = datetime.datetime.now()
+    # 文字列にフォーマットして組み込む
+    formatted_datetime = current_datetime.strftime("%Y%m%d%H%M%S")
 
+    l_row_cnt = 1
+    url_base = "https://page.auctions.yahoo.co.jp/jp/auction/"
     ws_multi = wb.create_sheet("重複出品データ")
-    ws_multi.append(["Auction ID", "Auction Title", "ITCode"])
-    for auction_id, auction_title in multiple_data:
-        ws_multi.append([auction_id, auction_title, auction_title[-12:]])
+    ws_multi.append(["Auction ID(1)", "Auction ID(2)", "Auction Title", "ITCode", "URL<Auction ID(1)>", "URL<Auction ID(2)>"])
+    for auction_id, auction_title, duplicate_partner_id in multiple_data:
+        url1 = url_base + auction_id
+        url2 = url_base + duplicate_partner_id
+        ws_multi.append([auction_id, duplicate_partner_id, auction_title, auction_title[-12:], url1, url2])
 
-    filename = "ヤフオク出品リスト_重複あり.xlsx"
+        ws_multi.cell(row=l_row_cnt+1, column=5).value = f'=HYPERLINK("{url1}", "重複1商品へのリンク")'
+        ws_multi.cell(row=l_row_cnt+1, column=6).value = f'=HYPERLINK("{url2}", "重複2商品へのリンク")'
+        
+        # セルにスタイルを適用
+        font = Font(color="0000FF", u='single')  # 赤色のテキスト
+        ws_multi.cell(row=l_row_cnt+1, column=5).font = font
+        ws_multi.cell(row=l_row_cnt+1, column=6).font = font
+        l_row_cnt += 1
+
+    filename = f"{formatted_datetime}_{l_work_selStore}_ヤフオク出品リスト_重複あり.xlsx"
+    # filename = "ヤフオク出品リスト_重複あり.xlsx"
     wb.save(filename)
     
     # tkを使うとファイルが大きくなるのでプロンプトで表示に変更
-    print("重複出品がありましたのでファイルに保存しました。\n重複出品データシートの商品で、ReCOREと紐づいていない商品をストクリにて削除して下さい。")
-    print(f"ストクリの出品リストを実行ファイルの場所に出力します。\nファイル名 => {filename}")
-    input("終了します。何かキーを押して下さい")
+    TxtBoxPrint("重複出品がありましたのでファイルに保存しました。\n重複出品データシートの商品で、ReCOREと紐づいていない商品をストクリにて削除して下さい。")
+    TxtBoxPrint(f"ストクリの出品リストを実行ファイルの場所に出力します。\nファイル名 => {filename}")
+    TxtBoxPrint("終了します")
+
+    row_count = ws_multi.max_row-1  # ヘッダ行の分-1しておく
+    LabelPrintRed(result_label, f"重複:{row_count}件")
 
 #---------------------------------------------------------
 #   関数名:OutputResultNoDuplicate()
@@ -202,21 +375,29 @@ def OutputResultDuplicate( all_data, unique_data, multiple_data):
 #        [i]multiple_data   チェック済み（重複）データ
 #   戻り値:なし
 #---------------------------------------------------------
-def OutputResultNoDuplicate( all_data, unique_data, multiple_data):
+def OutputResultNoDuplicate( l_work_selStore, all_data, unique_data, multiple_data):
     # Excelファイルを作成し、データを書き込む
     wb = Workbook()
     ws = wb.active
     ws.title = "出品リスト（ストクリ）"
+    # 現在の年月日時分を取得
+    current_datetime = datetime.datetime.now()
+    # 文字列にフォーマットして組み込む
+    formatted_datetime = current_datetime.strftime("%Y%m%d%H%M%S")
+
     ws.append(["Auction ID", "Auction Title", "ITCode"])
     for auction_id, auction_title in all_data:
         ws.append([auction_id, auction_title, auction_title[-12:]])
-    filename = "ヤフオク出品リスト_重複なし.xlsx"
+    filename = f"{formatted_datetime}_{l_work_selStore}_ヤフオク出品リスト_重複なし.xlsx"
+    # filename = "ヤフオク出品リスト_重複なし.xlsx"
     wb.save(filename)
 
     # tkを使うとファイルが大きくなるのでプロンプトで表示に変更
-    print("重複出品はありませんでした。")
-    print(f"ストクリの出品リストを実行ファイルの場所に出力します。\nファイル名 => {filename}")
-    input("終了します。何かキーを押して下さい")
+    TxtBoxPrint("重複出品はありませんでした。")
+    TxtBoxPrint(f"ストクリの出品リストを実行ファイルの場所に出力します。\nファイル名 => {filename}")
+    TxtBoxPrint("終了します。")
+    LabelPrint(result_label, "重複:0件")
+
 
 #---------------------------------------------------------
 #   関数名:OutputResult()
@@ -226,12 +407,82 @@ def OutputResultNoDuplicate( all_data, unique_data, multiple_data):
 #        [i]multiple_data   チェック済み（重複）データ
 #   戻り値:なし
 #---------------------------------------------------------
-def OutputResult( all_data, unique_data, multiple_data):
+def OutputResult( l_work_selStore, all_data, unique_data, multiple_data):
     # データが重複している場合は別のエクセルファイルに書き出す
     if len(all_data) != len(unique_data):
-        OutputResultDuplicate( all_data, unique_data, multiple_data)
+        OutputResultDuplicate( l_work_selStore, all_data, unique_data, multiple_data)
     else:
-        OutputResultNoDuplicate( all_data, unique_data, multiple_data)
+        OutputResultNoDuplicate( l_work_selStore, all_data, unique_data, multiple_data)
+
+
+#---------------------------------------------------------
+#   関数名:main_proc()
+#   概要:メインプロシージャ処理
+#   引数:なし
+#   戻り値:なし
+#---------------------------------------------------------
+def main_proc():
+
+    if store_combobox.get() == "":
+        LabelPrint(totalNum_label, "店舗を選択してください。")
+        LabelPrint(result_label, "--")
+        return
+    
+    LabelPrint(totalNum_label, "--")
+    LabelPrint(result_label, "--")
+
+    # (l_yahoo_id,l_store_name) = get_yahoo_id()
+    # g_setting_data['yahoo_id']=l_yahoo_id
+    base_url = "https://auctions.yahoo.co.jp/seller/{}?sid={}&is_postage_mode=1&dest_pref_code=13&b={}&n={}&mode=2"
+
+    # データを保持するリスト
+    all_data = []
+
+    # 設定ファイル更新
+    write_config(SETTING_FILE_NAME)
+    
+    l_work_selStore = g_setting_data["selected_store"]
+    TxtBoxPrint(f'{l_work_selStore} ヤフオク重複出品チェック開始')
+    global g_start_page
+    g_start_page = 1
+    update_progress(0)
+    VisibleProgress()
+    while True:
+        time.sleep(GetRandomTime(1.0, 3.0))
+
+        url = base_url.format(g_setting_data['yahoo_id'], g_setting_data['yahoo_id'], g_start_page, PAGE_DATA_NUM)
+        response = requests.get(url)
+        start_time = time.time()
+    
+        if 1 == AnalizeResponse(response, all_data):
+            g_start_page += PAGE_DATA_NUM
+        else:
+            break
+
+        end_time = time.time()
+        # 処理時間を計算
+        elapsed_time = end_time - start_time
+        # print(f"処理時間: {elapsed_time:.4f}秒")
+
+    # 重複チェックを行う
+    unique_data = []    # 重複しないデータを格納するリスト
+    multiple_data = []  # 重複しているデータを格納するリスト
+    DuplicateCheck( all_data, unique_data, multiple_data)
+    OutputResult( l_work_selStore, all_data, unique_data, multiple_data)
+    HiddenProgress()
+
+#---------------------------------------------------------
+#   関数名:on_select_store_combobox()
+#   概要:コンボボックス変更イベントハンドラ
+#   引数:なし
+#   戻り値:なし
+#---------------------------------------------------------
+def on_select_store_combobox(event):
+    l_store = store_combobox.get()
+    g_setting_data['selected_store'] = l_store
+    g_setting_data['yahoo_id'] = store_data.get( l_store )[IDX_YAHOO_ID]
+    # 設定ファイル更新
+    write_config(SETTING_FILE_NAME)
 
 
 #---------------------------------------------------------
@@ -240,49 +491,73 @@ def OutputResult( all_data, unique_data, multiple_data):
 #   引数:なし
 #   戻り値:なし
 #---------------------------------------------------------
-# # 白子URL
-base_url = "https://auctions.yahoo.co.jp/seller/sngbe73253?sid=sngbe73253&is_postage_mode=1&dest_pref_code=13&b={}&n=100&mode=2"
-# 豊川URL
-# base_url = "https://auctions.yahoo.co.jp/seller/eyemc48423?sid=sngbe73253&is_postage_mode=1&dest_pref_code=13&b={}&n=100&mode=2"
-# ctypes.windll.shcore.SetProcessDpiAwareness(True)
+# Tkinterウィンドウの作成
+root = tk.Tk()
+root.title("ストクリ重複チェック")
+# root.iconbitmap("YahooTool.ico")
 
-# データを保持するリスト
-all_data = []
-setting_data = {}
-config_file = "setting.ini"     # 設定ファイルのパス
+ctypes.windll.shcore.SetProcessDpiAwareness(True)
+
+sel_store_name = ""
+
+
+# プルダウンメニューの作成
+# f.Font(family="Lucida Console", weight="bold", size=8, slant="italic")
+font1 = fnt.Font(size=12)
+store_label = tk.Label(root, justify="left", text="店舗名:")
+store_label["font"] = font1
+store_label.grid(row=0, column=0, rowspan=2, padx=10, pady=5)
+store_combobox = ttk.Combobox(root, values=list(store_data.keys()))
+store_combobox.grid(row=0, column=1, rowspan=2, padx=10, pady=5)
+store_combobox.bind("<<ComboboxSelected>>", on_select_store_combobox)
+store_combobox.set(sel_store_name)
+store_combobox["font"] = font1
+
+# 複数行のテキストボックスを作成
+result_box = tk.Text(root, height=7, width=60)
+result_box.grid(row=3, column=0, columnspan=4, padx=10, pady=5)
+
+# 総件数表示用のラベル
+totalNum_label = tk.Label(root, text="--")
+totalNum_label.grid(row=0, column=2, columnspan=2, padx=0, pady=5)
+
+# 結果表示用のラベル
+result_label = tk.Label(root, text="--")
+result_label.grid(row=1, column=2, columnspan=2, padx=0, pady=5)
 
 # 設定ファイルを読み込み、設定を取得
-config = read_config(config_file)
-
+config = read_config(SETTING_FILE_NAME)
 # 設定情報を変数に代入
 for key, value in config.items():
-    setting_data[key] = value
+    g_setting_data[key] = value
+sel_store_name = config.get('selected_store')
 
-# 設定ファイル更新
-write_config(config_file)
+# プルダウンの初期値セット
+initial_index = 0
+if sel_store_name in store_data.values():
+    for index, value in enumerate(store_data.values()):
+        if value == sel_store_name:
+            initial_index = index
+            break
+    store_combobox.selection_set(initial_index)
 
-print('工具買取王国　鈴鹿白子23号店　ヤフオク重複出品チェック開始')
-# print('工具買取王国　豊川店　ヤフオク重複出品チェック開始')
-start_page = 1
-while True:
-    time.sleep(GetRandomTime(1.0, 3.0))
+# ボタンの作成
+fonts = ("", 18)
+search_button = tk.Button(root, bg="#FF9999", text="出品データ取得", height=3, width=30, font=fonts, command=main_proc)
+search_button.grid(row=2, column=0, columnspan=4, padx=10, pady=5)
+search_button.focus_set()
+# # フォントの設定を取得して、サイズだけを変更する
+# font_name = search_button.cget("font")  # ボタンの現在のフォント設定を取得
+# # font_name, font_size, font_style = font_tuple.split()  # フォント設定を分解
+# search_button.config(font=(font_name, 10))  # サイズだけを変更して再設定
 
-    url = base_url.format(start_page)
-    response = requests.get(url)
-    start_time = time.time()
- 
-    if 1 == AnalizeResponse(response, all_data):
-        start_page += 100
-    else:
-        break
+# プログレスバーの作成
+progress = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
+progress.grid(row=4, column=0, columnspan=4, padx=10, pady=5)
+HiddenProgress()
 
-    end_time = time.time()
-    # 処理時間を計算
-    elapsed_time = end_time - start_time
-    # print(f"処理時間: {elapsed_time:.4f}秒")
+root.tk.call('wm', 'iconphoto', root._w, tk.PhotoImage(data=iconData.data))
 
-# 重複チェックを行う
-unique_data = []    # 重複しないデータを格納するリスト
-multiple_data = []  # 重複しているデータを格納するリスト
-DuplicateCheck( all_data, unique_data, multiple_data)
-OutputResult( all_data, unique_data, multiple_data)
+# イベントループの開始
+root.mainloop()
+#---
