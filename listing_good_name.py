@@ -21,6 +21,7 @@ import iconData
 # 定数
 #------------------------------------------------
 DEBUG_ENABLE = 0    #0:無効、1:有効
+DEBUG_MULTIPLE_NUM = 4  # デバッグ用の重複データ数
 GLOBAL_KEYS = {"selected_store","yahoo_id"}
 SETTING_FILE_NAME = "setting.ini"
 PAGE_DATA_NUM = 100
@@ -206,14 +207,15 @@ def write_config(filename):
 
 #---------------------------------------------------------
 #   関数名:DBG_DupDataSet()
-#   概要:デバッグ用に重複データをセットする
+#   概要:デバッグ用にdiff_num個の重複データを終端にセットする
 #---------------------------------------------------------
-def DBG_DupDataSet( items ):
+def DBG_DupDataSet( all_data, diff_num ):
     # @@debug
-    auction_id = items[0]['data-auction-id']
-    auction_id = "4" + auction_id[1:]    #オークションIDは重複しないので先頭を別の文字に変更しておく
-    auction_title = items[0]['data-auction-title']
-    all_data.append((auction_id, auction_title))
+    for i in range(0,diff_num):
+        auction_id = all_data[i][0]
+        auction_id = "4" + auction_id[1:]    #オークションIDは重複しないので先頭を別の文字に変更しておく
+        auction_title = all_data[i][1]
+        all_data.append((auction_id, auction_title))
 
 
 #---------------------------------------------------------
@@ -271,9 +273,6 @@ def AnalizeResponse(response, all_data):
             auction_id = items[i]['data-auction-id']
             auction_title = items[i]['data-auction-title']
             all_data.append((auction_id, auction_title))
-
-        if DEBUG_ENABLE == 1:
-            DBG_DupDataSet(items)  #debug
 
         # 指定されたセレクターにマッチする要素を取得し、Pager__link--disableが含まれているかチェック
         next_link = soup.select_one("#allContents > div.gv-l-wrapper.gv-l-wrapper--pc.gv-l-wrapper--liquid > main > div > div.gv-l-contentBody > div.gv-l-main > div.Pager > ul > li.Pager__list.Pager__list--next > span.Pager__link--disable")
@@ -464,6 +463,9 @@ def main_proc():
         elapsed_time = end_time - start_time
         # print(f"処理時間: {elapsed_time:.4f}秒")
 
+    if DEBUG_ENABLE == 1:
+        DBG_DupDataSet(all_data, DEBUG_MULTIPLE_NUM)  #debug(先頭から第3引数の個数分だけ同一データを追加して重複させる
+
     # 重複チェックを行う
     unique_data = []    # 重複しないデータを格納するリスト
     multiple_data = []  # 重複しているデータを格納するリスト
@@ -494,7 +496,6 @@ def on_select_store_combobox(event):
 # Tkinterウィンドウの作成
 root = tk.Tk()
 root.title("ストクリ重複チェック")
-# root.iconbitmap("YahooTool.ico")
 
 ctypes.windll.shcore.SetProcessDpiAwareness(True)
 
@@ -533,23 +534,22 @@ for key, value in config.items():
 sel_store_name = config.get('selected_store')
 
 # プルダウンの初期値セット
-initial_index = 0
-if sel_store_name in store_data.values():
-    for index, value in enumerate(store_data.values()):
-        if value == sel_store_name:
-            initial_index = index
-            break
-    store_combobox.selection_set(initial_index)
+initial_index = -1
+for index, value in enumerate(store_data.values()):
+    if value[1] == sel_store_name:
+        initial_index = index
+        break
+if initial_index != -1:
+    store_combobox.set(sel_store_name)
+else:
+    store_combobox.set("店舗を選択して下さい")
+
 
 # ボタンの作成
 fonts = ("", 18)
 search_button = tk.Button(root, bg="#FF9999", text="出品データ取得", height=3, width=30, font=fonts, command=main_proc)
 search_button.grid(row=2, column=0, columnspan=4, padx=10, pady=5)
 search_button.focus_set()
-# # フォントの設定を取得して、サイズだけを変更する
-# font_name = search_button.cget("font")  # ボタンの現在のフォント設定を取得
-# # font_name, font_size, font_style = font_tuple.split()  # フォント設定を分解
-# search_button.config(font=(font_name, 10))  # サイズだけを変更して再設定
 
 # プログレスバーの作成
 progress = ttk.Progressbar(root, orient="horizontal", length=200, mode="determinate")
