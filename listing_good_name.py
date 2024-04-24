@@ -298,14 +298,38 @@ def DuplicateCheck(all_data, unique_data, multiple_data):
     seen_titles = set()
     seen_ids = set()
     for auction_id, auction_title in all_data:
-        if auction_title not in seen_titles:  # 重複無し
+        bDuplicated = False
+        # ヤフオク仕様が不明なため暫定対応
+        # オークションIDが重複するという情報が収集されることがある.
+        # ありえないはずだが発生するので、その場合は重複出品ではないと判断する.
+        if auction_id not in seen_ids:
+            # 重複チェック
+            if auction_title not in seen_titles:
+                bDuplicated = False  # 重複無し
+            else:
+                if auction_title in [item[1] for item in unique_data]:  # 重複相手を探す
+                    bDuplicated = True  # 重複あり
+                else:
+                    bDuplicated = False  # 重複無し
+        # DBG（オークションID重複検出時の調査用）
+        # else:
+        #     TxtBoxPrint('\tDBG ---以下、気にしないでください---')
+        #     TxtBoxPrint('\tDBG オークションID重複検出')
+        #     TxtBoxPrint(f"\tDBG オークションID => {auction_id}")
+        #     TxtBoxPrint('\tDBG ---ここまで、気にしないでください---')
+
+        # 重複チェック後のデータセット
+        if bDuplicated == True: # 重複あり
+            duplicate_partner_id = [item[0] for item in unique_data if item[1] == auction_title][0]
+            multiple_data.append((auction_id, auction_title, duplicate_partner_id))
+        else:   # 重複なし
             seen_titles.add(auction_title)
             seen_ids.add(auction_id)
             unique_data.append((auction_id, auction_title))
-        else:  # 重複あり
-            if auction_title in [item[1] for item in unique_data]:  # 重複相手を探す
-                duplicate_partner_id = [item[0] for item in unique_data if item[1] == auction_title][0]
-                multiple_data.append((auction_id, auction_title, duplicate_partner_id))
+
+
+
+
 #---------------------------------------------------------
 #   関数名:ExportExcelSheet()
 #   概要:指定のエクセルシートに指定データを書き込む
