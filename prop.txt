@@ -7,7 +7,7 @@ VSVersionInfo(
     # filevers and prodvers should be always a tuple with four items: (1, 2, 3, 4)
     # Set not needed items to zero 0.
     filevers=(1, 0, 0, 0),
-    prodvers=(1, 1, 0, 0),
+    prodvers=(1, 1, 1, 0),
     # Contains a bitmask that specifies the valid bits 'flags'r
     mask=0x3f,
     # Contains a bitmask that specifies the Boolean attributes of the file.
@@ -36,7 +36,7 @@ VSVersionInfo(
         StringStruct(u'LegalCopyright', u'株式会社買取王国'),
         StringStruct(u'OriginalFilename', u'ストクリ重複出品チェックツール.exe'),
         StringStruct(u'ProductName', u'ストクリ重複チェック'),
-        StringStruct(u'ProductVersion', u'01.01.00')])
+        StringStruct(u'ProductVersion', u'01.01.01')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1041, 1200])])
   ]
